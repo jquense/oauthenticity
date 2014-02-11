@@ -238,7 +238,7 @@ describe('when the grant is authorization_code', function(){
         beforeEach(function(){
             generateToken = sinon.stub(),
             generateCode = sinon.stub() 
-            options = { hooks:
+            options = { allowImplicit: true, hooks:
                  { generateCode: generateCode, generateUserToken: generateToken} }
         })
 
@@ -256,6 +256,19 @@ describe('when the grant is authorization_code', function(){
         describe('when the request_type is token', function(){
             beforeEach(function(){
                 grantCode = _.partial(authCode.grantCode, 'bob', uri, 'token', client, options)
+            })
+
+            describe('when the implict not allowed', function(){
+                beforeEach(function(){
+                    options.allowImplicit = false
+                    grantCode = _.partial(authCode.grantCode, 'bob', uri, 'invalid_type', client, options)
+                })
+
+                it('should deny reject the request', function(done){
+                    grantCode().should.be.an.oauthError(common.InvalidRequestError, 'response_type must be either: \'token\' or \'code\'')
+                        .and.notify(done)
+                })
+
             })
 
             describe('when the grantToken returns true ', function(){

@@ -1,4 +1,5 @@
-﻿var chai = require('chai')
+﻿var chai  = require('chai')
+  , sinon = require("sinon")
   , chaiAsPromised = require('chai-as-promised')
   , sinonChai = require("sinon-chai")
   , Assertion = require("chai").Assertion
@@ -7,6 +8,27 @@ module.exports = function(){
     chai.use(chaiAsPromised);
     chai.use(sinonChai);
     chai.should();
+
+    Assertion.addMethod("oauthErrorResponse", function(Err, testBody){
+        var obj = this._obj
+          
+        obj.send.should.have.been.calledOnce
+        obj.send.should.have.been.calledWith(sinon.match.instanceOf(Err))
+        obj.send.should.have.been.calledWith(sinon.match.has('body'))
+        obj.send.should.have.been.calledWith(sinon.match(function(value){
+            return testBody ? !!~value.message.indexOf(testBody) : true
+        }));
+    })
+
+    Assertion.addMethod("serverError", function(Err, testBody){
+        var obj = this._obj
+          
+        obj.send.should.have.been.calledOnce
+        obj.send.should.have.been.calledWith(sinon.match.instanceOf(Err))
+        obj.send.should.have.been.calledWith(sinon.match(function(value){
+            return testBody ? !!~value.message.indexOf(testBody) : true
+        }));
+    })
 
     Assertion.addMethod("oauthError", function(Err, testBody){
         var obj = this._obj

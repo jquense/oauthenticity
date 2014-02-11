@@ -1,0 +1,37 @@
+{
+  "name": "oauth2-bootstrap",
+  "version": "0.0.0",
+  "description": "simple ouath2 implementation for use with restify",
+  "main": "lib/setup.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "mocha ./tests/oauth2.js -R spec"
+  },
+  "keywords": [
+    "oauth",
+    "oauth2",
+    "restify",
+    "connect",
+    "auth",
+    "authentication",
+    "grants"
+  ],
+  "author": "Jason Quense @theporchrat",
+  "license": "MIT",
+  "devDependencies": {
+    "mocha": "~1.17.1",
+    "chai": "~1.9.0",
+    "chai-as-promised": "~4.1.0",
+    "sinon": "~1.8.1",
+    "sinon-chai": "~2.5.0"
+  },
+  "peerDependencies": {
+    "restify": "^2.0.0"
+  },
+  "dependencies": {
+    "lodash": "~2.4.1",
+    "bluebird": "~1.0.4"
+  }
+}

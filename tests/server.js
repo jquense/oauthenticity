@@ -14,7 +14,14 @@ var tokenEndpoint ='/token'
   , authorizeEndpoint = '/authorize';
 
 
-
+syncPromise = function(val, resolve){
+    var pro = function(){}   
+    pro.then = function(fn, err){
+        if ( resolve ) fn(val)
+        else  err(val)   
+    }
+    
+}
 describe('setup the server as an OAuth2 provider', function(){
    var postToToken, getToAuth, req, res, next, server, options, setup, grants, hooks
      , client = 'the_porch', uri = 'my.example.com', secret = 'secret!'
@@ -23,7 +30,7 @@ describe('setup the server as an OAuth2 provider', function(){
     beforeEach(function(){
         var _hooks = ['generateUserToken', 'generateRefreshToken', 'exchangeRefreshToken', 'authenticateClient']
         req = { username: 'bob', authorization: {}, body: {}, query: {} }
-        res = { writeHead: sinon.spy(), send: sinon.spy(), cache: sinon.spy() }
+        res = { header: sinon.spy(), send: sinon.spy(), cache: sinon.spy() }
         next = function(resp){ resp !== null && res.send(resp) }
         server = {
             get:  sinon.spy(function(url, fn){ getToAuth   = _.partial(fn, req, res, next) }),
@@ -129,17 +136,43 @@ describe('setup the server as an OAuth2 provider', function(){
         })
 
         describe('when client authenticates', function(){
+            var finished, tokens, result;
+
             beforeEach(function(){ 
                 hooks.authenticateClient.yields(null, true);
+
                 grantStubs.validateRequest.returns(Promise.resolve('params'));
-                grantStubs.grantToken.returns(Promise.resolve('params'))
+                grantStubs.grantToken.returns(Promise.resolve({ token: 'token', refresh: 'refresh' }))
+
+                setup = function(){
+                   
+                    return new Promise(function(resolve, reject){
+                        server.post = sinon.spy(function(url, fn){ 
+                            postToToken = _.partial(fn, req, res, reject)
+                        })
+
+                        res.send = sinon.spy(resolve)
+
+                        createServer(server, options, grants)
+                        postToToken()
+                    }) 
+                }
             })
 
-            it('should send validate request', function(){
-                setup()
-                grantStubs.validateRequest.should.have.been.calledOnce
-                grantStubs.grantToken.should.have.been.calledOnce
-                //grantStubs.grantToken.should.have.been.calledWith('params')
+            it('should send valid request', function(done){
+                setup().then(function(){
+
+                    grantStubs.validateRequest.should.have.been.calledOnce
+                    grantStubs.grantToken.should.have.been.calledOnce
+
+                    res.send.should.have.been.calledWithMatch(200, {
+                        access_token: 'token',
+                        refresh_token: 'refresh',
+                        token_type: 'Bearer',
+                        expires_in: undefined 
+                    })
+                })
+                .should.notify(done)
             })
         })
 

@@ -1,6 +1,6 @@
 {
   "name": "existential",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "simple ouath2 implementation for use with restify or any other connect style node server",
   "main": "lib/setup.js",
   "directories": {

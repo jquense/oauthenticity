@@ -319,12 +319,19 @@ describe('when the grant is authorization_code', function(){
                 grantCode = _.partial(authCode.grantCode, 'bob', uri, 'code', client, options)
             })
 
+            it('should call the code hook with the correct args', function(){
+                grantCode()
+                generateToken.should.not.have.been.called
+                generateCode.should.have.been.calledOnce
+                generateCode.should.have.been.calledWith('bob', client, uri)
+            }) 
+
             describe('when the grantCode returns true ', function(){
                 beforeEach(function(){
                     generateCode.yields(null, code)
                 })
 
-                it('should call the token hook', function(done){
+                it('should call the code hook', function(done){
 
                     grantCode()
                         .then(function(){

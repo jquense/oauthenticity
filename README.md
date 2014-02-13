@@ -5,7 +5,10 @@ A simple, custimizable oauth2 provider for connect style node servers. Existenti
 
 ###Setup
 
-Since we need to manually define endpoints (token and authorixation) there is a little more work needed then just providing a middleware. the
-    require('existential').createServer
+Since we need to manually define endpoints (token and authorixation) there is a little more work needed then just providing a middleware. the [require('existential').createOauthProvider]
     
 medthod will handle it all, just provide the necessary hooks, and grant types you wish to use
+
+### Known Issues
+
+only authorization_grant, password, and refresh_token grants are actually implemented

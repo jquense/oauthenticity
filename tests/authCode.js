@@ -5,7 +5,7 @@ var Promise  = require('bluebird')
   , _ = require('lodash')
   , sinon    = require("sinon")
   , authCode = require('../lib/code.js')
-  , common   = require('../lib/common.js')
+  , errors   = require('../lib/errors.js')
   ;
 
 //Promise.onPossiblyUnhandledRejection(function(){})
@@ -33,13 +33,13 @@ describe('when the grant is authorization_code', function(){
             it('should fail with invalid_request and proper message', function(done){
                 Promise.all([
                     validate(req(undefined, uri, code), options)
-                        .should.be.an.oauthError(common.InvalidRequestError, 'client_id'),
+                        .should.be.an.oauthError(errors.InvalidRequestError, 'client_id'),
 
                     validate(req(client, undefined, code), options)
-                        .should.be.an.oauthError(common.InvalidRequestError, 'redirect_uri'),
+                        .should.be.an.oauthError(errors.InvalidRequestError, 'redirect_uri'),
 
                     validate(req(client, uri, undefined), options)
-                        .should.be.an.oauthError(common.InvalidRequestError, 'code'),
+                        .should.be.an.oauthError(errors.InvalidRequestError, 'code'),
 
                 ]).should.notify(done)
 
@@ -91,7 +91,7 @@ describe('when the grant is authorization_code', function(){
                 })
 
                 it('should fail with invalid_request', function(done){
-                    validate().should.be.an.oauthError(common.InvalidRequestError, 'the code provided was invalid')
+                    validate().should.be.an.oauthError(errors.InvalidRequestError, 'the code provided was invalid')
                         .and.notify(done)
                 });
             })
@@ -113,7 +113,7 @@ describe('when the grant is authorization_code', function(){
                 })
 
                 it('should be return an invalid_request', function(done){
-                    validate().should.be.an.oauthError(common.InvalidRequestError, 'request_uri do not match')
+                    validate().should.be.an.oauthError(errors.InvalidRequestError, 'request_uri do not match')
                         .and.notify(done)
                 });
             })
@@ -124,7 +124,7 @@ describe('when the grant is authorization_code', function(){
                 })
 
                 it('should be return an invalid_request', function(done){
-                    validate().should.be.an.oauthError(common.InvalidRequestError, 'invalid client_id')
+                    validate().should.be.an.oauthError(errors.InvalidRequestError, 'invalid client_id')
                         .and.notify(done)
                 });
             })
@@ -194,7 +194,7 @@ describe('when the grant is authorization_code', function(){
                 })
 
                 it('should deny access', function(done){
-                    grantTokens().should.be.an.oauthError(common.AccessDeniedError, 'server denied acces_token request')
+                    grantTokens().should.be.an.oauthError(errors.AccessDeniedError, 'server denied acces_token request')
                         .and.notify(done)
                 })
             })
@@ -248,7 +248,7 @@ describe('when the grant is authorization_code', function(){
             })
 
             it('should deny reject the request', function(done){
-                grantCode().should.be.an.oauthError(common.InvalidRequestError, 'response_type must be either: \'token\' or \'code\'')
+                grantCode().should.be.an.oauthError(errors.InvalidRequestError, 'response_type must be either: \'token\' or \'code\'')
                     .and.notify(done)
             })
         })
@@ -265,7 +265,7 @@ describe('when the grant is authorization_code', function(){
                 })
 
                 it('should deny reject the request', function(done){
-                    grantCode().should.be.an.oauthError(common.InvalidRequestError, 'response_type must be either: \'token\' or \'code\'')
+                    grantCode().should.be.an.oauthError(errors.InvalidRequestError, 'response_type must be either: \'token\' or \'code\'')
                         .and.notify(done)
                 })
 
@@ -298,7 +298,7 @@ describe('when the grant is authorization_code', function(){
                 })
 
                 it('should deny access', function(done){
-                    grantCode().should.be.an.oauthError(common.AccessDeniedError, 'server denied acces_token request')
+                    grantCode().should.be.an.oauthError(errors.AccessDeniedError, 'server denied acces_token request')
                         .and.notify(done)
                 })  
             })
@@ -346,7 +346,7 @@ describe('when the grant is authorization_code', function(){
                 })
 
                 it('should deny access', function(done){
-                    grantCode().should.be.an.oauthError(common.AccessDeniedError, 'server denied code request')
+                    grantCode().should.be.an.oauthError(errors.AccessDeniedError, 'server denied code request')
                         .and.notify(done)
                 })  
             })
@@ -371,7 +371,7 @@ describe('when the grant is authorization_code', function(){
             res = {}; req = { url: '/authorize' };
             userAuth = sinon.stub();
             options = { hooks: { userAuthorization: userAuth } }
-            requestApproval = _.partial(authCode.resourceOwnerApproval, req, res, client, options)
+            requestApproval = _.partial(authCode.resourceOwnerApproval, req, res, client, uri, options)
             userAuth.yields(null, 'bob')
         })
 
@@ -394,7 +394,7 @@ describe('when the grant is authorization_code', function(){
             })
 
             it('should deny access', function(done){
-                requestApproval().should.be.an.oauthError(common.AccessDeniedError, 'server denied authorization request')
+                requestApproval().should.be.an.oauthError(errors.AccessDeniedError, 'server denied authorization request')
                     .and.notify(done)    
             })
         })

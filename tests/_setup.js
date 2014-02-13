@@ -12,10 +12,10 @@ module.exports = function(){
     Assertion.addMethod("oauthErrorResponse", function(Err, testBody){
         var obj = this._obj
           
-        obj.send.should.have.been.calledOnce
-        obj.send.should.have.been.calledWith(sinon.match.instanceOf(Err))
-        obj.send.should.have.been.calledWith(sinon.match.has('body'))
-        obj.send.should.have.been.calledWith(sinon.match(function(value){
+        obj.should.have.been.calledOnce
+        obj.should.have.been.calledWith(sinon.match.instanceOf(Err))
+        obj.should.have.been.calledWith(sinon.match.has('body'))
+        obj.should.have.been.calledWith(sinon.match(function(value){
             return testBody ? !!~value.message.indexOf(testBody) : true
         }));
     })
@@ -23,9 +23,9 @@ module.exports = function(){
     Assertion.addMethod("serverError", function(Err, testBody){
         var obj = this._obj
           
-        obj.send.should.have.been.calledOnce
-        obj.send.should.have.been.calledWith(sinon.match.instanceOf(Err))
-        obj.send.should.have.been.calledWith(sinon.match(function(value){
+        obj.should.have.been.calledOnce
+        obj.should.have.been.calledWith(sinon.match.instanceOf(Err))
+        obj.should.have.been.calledWith(sinon.match(function(value){
             return testBody ? !!~value.message.indexOf(testBody) : true
         }));
     })
@@ -38,6 +38,7 @@ module.exports = function(){
           , promise =  typeof this.then === "function" ? assertion : obj
           , derived;
 
+        
         if (!isCtor ) throw new TypeError("you didn't provide a valid Ouath Error")
 
         derived = promise.then(function(value){
@@ -46,7 +47,7 @@ module.exports = function(){
                     , null, name, value)
 
             }, function(reason){
-
+                
                 assertion.assert(
                       reason instanceof Err
                     , "expected promise to be rejected with #{exp} but it was rejected with #{act}"

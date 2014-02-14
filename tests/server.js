@@ -16,24 +16,25 @@ var tokenEndpoint ='/token'
 
 
 describe('setup the server as an OAuth2 provider', function(){
-   var postToToken, getToAuth, req, res, next, server, options, setup, grants, hooks
+   var postToToken, getToAuth, middleware, req, res, next, server, options, setup, grants, hooks
      , sendJson, sendError
      , client = 'the_porch', uri = 'my.example.com', secret = 'secret!'
      , grantStubs;
 
     beforeEach(function(){
-        var _hooks = ['generateUserToken', 'generateRefreshToken', 'exchangeRefreshToken', 'authenticateClient']
-        req = { username: 'bob', authorization: {}, body: {}, query: {} }
+        var _hooks = ['validateToken', 'generateUserToken', 'generateRefreshToken', 'exchangeRefreshToken', 'authenticateClient']
+        req = { username: 'bob', authorization: {}, body: {}, query: {}, path: sinon.stub() }
         res = { writeHead: sinon.spy(), setHeader: sinon.spy(), end: sinon.spy(), cache: sinon.spy() }
         
         sendJson  = oauth._sendJson = sinon.spy()
         sendError = oauth._respondWithError = sinon.spy()
 
-        next = function(resp){ resp !== null && res.send(resp) }
+        next = sinon.spy(function(resp){ resp !== null && sendError(resp) })
+
         server = {
             get:  sinon.spy(function(url, fn){ getToAuth   = _.partial(fn, req, res, next) }),
             post: sinon.spy(function(url, fn){ postToToken = _.partial(fn, req, res, next) }),
-            use:  sinon.spy(function(fn){  }) //fn(req, res, next)
+            use:  sinon.spy(function(fn){ middleware = _.partial(fn, req, res, next) }) //fn(req, res, next)
         }
     
         grantStubs = getGrantStubs();
@@ -50,6 +51,8 @@ describe('setup the server as an OAuth2 provider', function(){
        
         options = {
             grants: ['client_credentials','password','refresh_token'],
+            tokenEndpoint: tokenEndpoint,
+            authorizeEndpoint: authorizeEndpoint,
             hooks: hooks
         }
 
@@ -319,6 +322,138 @@ describe('setup the server as an OAuth2 provider', function(){
         })
 
     })
+
+    describe('when a request is intercepted', function(){
+        beforeEach(function(){ 
+            var base = setup;
+            setup = function(){
+                 base()
+                 middleware(options)   
+            }
+
+            options.grants.push('authorization_code')
+        })
+       // console.log(req, res, next)
+        describe('when the request is heading for the token endpoint', function(){
+            beforeEach(function(){ 
+                req.method = 'POST'
+                req.path.returns(tokenEndpoint)
+            })
+
+            it('continue through for the token endpoint', function(){
+                setup()
+                next.should.have.been.calledOnce
+                next.should.have.been.calledWithExactly()    
+            })
+        }) 
+        
+        describe('when the request is heading for the code endpoint', function(){
+            beforeEach(function(){ 
+                req.method = 'GET'
+                req.path.returns(authorizeEndpoint)
+            })
+
+            it('continue through for the code endpoint', function(){
+                setup()
+                next.should.have.been.calledOnce
+                next.should.have.been.calledWithExactly()    
+            })
+
+            describe('when the grant doesn\'t support auth code', function(){
+                beforeEach(function(){ 
+                    req.method = 'GET'
+                    req.path.returns(authorizeEndpoint)
+                    options.grants = ['client_credentials']
+                })
+
+                it('protect the code endpoint', function(){
+                    setup()
+                    next.should.not.have.been.called 
+                })
+            })
+        }) 
+       
+        
+        describe('when the request is missing an access_token', function(){
+
+            it('should send an invalid_request error', function(){
+                setup()
+                sendError.should.have.been.an.oauthErrorResponse(errors.InvalidRequestError, 'access_token not included in the request')
+            })
+        }) 
+
+        describe('when the request contains an access_token in more then one place', function(){
+            beforeEach(function(){ 
+                req.query.access_token ='token'
+                req.body.access_token ='token'
+            })
+
+            it('should send an invalid_request error', function(){
+                setup()
+                sendError.should.have.been.an.oauthErrorResponse(errors.InvalidRequestError, 
+                    'access_token can only be specified in either the: header, body, or query, once')
+            })
+        }) 
+
+        describe('when the request doesn\'t contain a type', function(){
+            beforeEach(function(){ 
+                req.query.access_token ='token'
+            })
+
+            it('should send an invalid_request error', function(){
+                setup()
+                sendError.should.have.been.an.oauthErrorResponse(errors.InvalidRequestError, 
+                    'token_type missing or invalid')
+            })
+        })
+
+        describe('when the request validates correctly', function(){
+            beforeEach(function(){ 
+                req.query.access_token ='token'
+                req.query.token_type ='bearer'
+            })
+
+            it('should pass the token to the hook', function(){
+                setup()
+                hooks.validateToken.should.have.been.calledWith('token')
+            })
+
+            describe('when the hook validates the token', function(){
+                beforeEach(function(){ 
+                    hooks.validateToken.yields(null, true)
+                })
+
+                it('should clear the request to the next in the chain', function(){
+                    setup()
+                    next.should.have.been.calledOnce
+                    next.should.have.been.calledWithExactly()  
+                })
+            }) 
+
+            describe('when the hook throws an error', function(){
+                beforeEach(function(){ 
+                    hooks.validateToken.yields(new Error())
+                })
+
+                it('should send the error back to the client', function(){
+                    setup()
+                    sendError.should.have.been.an.serverError(Error)
+                })
+            }) 
+
+            describe('when the hook returns false', function(){
+                beforeEach(function(){ 
+                    hooks.validateToken.yields(null, false)
+                })
+
+                it('should send the error back to the client', function(){
+                    setup()
+                    sendError.should.have.been.an.oauthErrorResponse(errors.UnauthorizedClient)
+                })
+            }) 
+        }) 
+    })
+
 })
 
 

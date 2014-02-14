@@ -1,4 +1,4 @@
-Oauthenticity.js
+OAuthenticity.js
 =====================
 
 A simple, custimizable oauth2 provider for connect style node servers. Existential abstracts way the annoying validation and flow of the Oauth2 spec and lets you jsut plugin in your specific business logic. It is mean to be easy and only as opinonated as needed to still be oauth2

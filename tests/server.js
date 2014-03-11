@@ -3,6 +3,7 @@ require('./_setup')()
 
 var Promise  = require('bluebird')
   , _ = require('lodash')
+  , format = require('util').format
   , sinon    = require("sinon")
   , oauth = require('../lib/setup')
   , createServer = oauth._setupServer
@@ -23,7 +24,7 @@ describe('setup the server as an OAuth2 provider', function(){
 
     beforeEach(function(){
         var _hooks = ['validateToken', 'generateUserToken', 'generateRefreshToken', 'exchangeRefreshToken', 'authenticateClient']
-        req = { username: 'bob', authorization: {}, body: {}, query: {}, path: sinon.stub() }
+        req = { username: 'bob', authorization: {}, body: {}, query: {}, url: 'a/route/' }
         res = { writeHead: sinon.spy(), setHeader: sinon.spy(), end: sinon.spy(), cache: sinon.spy() }
         
         sendJson  = oauth._sendJson = sinon.spy()
@@ -31,12 +32,6 @@ describe('setup the server as an OAuth2 provider', function(){
 
         next = sinon.spy(function(resp){ resp !== null && sendError(resp) })
 
-        server = {
-            get:  sinon.spy(function(url, fn){ getToAuth   = _.partial(fn, req, res, next) }),
-            post: sinon.spy(function(url, fn){ postToToken = _.partial(fn, req, res, next) }),
-            use:  sinon.spy(function(fn){ middleware = _.partial(fn, req, res, next) }) //fn(req, res, next)
-        }
-    
         grantStubs = getGrantStubs();
 
         grants = {
@@ -56,18 +51,28 @@ describe('setup the server as an OAuth2 provider', function(){
             hooks: hooks
         }
 
-        setup = _.partial(createServer, server, options, grants)
+        setup = function(){
+            var routes = createServer( options, grants);
+            middleware  = _.partial(routes.middleware, req, res, next);
+            postToToken = _.partial(routes.tokenEndpoint, req, res, next);
+
+            if (routes.authorizationEndpoint )
+                getToAuth = _.partial(routes.authorizationEndpoint, req, res, next);
+
+            return routes;
+        }
     })
 
     it('should create only one endpoint', function(){
-        setup()
-        server.post.should.have.been.calledOnce
-        server.get.should.not.have.been.called
+        var routes = setup()
+
+        routes.should.have.property('tokenEndpoint')
+        routes.should.not.have.property('authorizationEndpoint')
     })
      
     it('should setup middleware', function(){
-        setup()
-        server.use.should.have.been.calledOnce
+        var routes = setup()
+        routes.should.have.property('middleware')
     })
 
     describe('when authorization_code grant type is selected', function(){
@@ -76,9 +81,10 @@ describe('setup the server as an OAuth2 provider', function(){
         })
 
         it('should create both endpoints', function(){
-            setup()
-            server.post.should.have.been.calledOnce
-            server.get.should.have.been.calledOnce
+            var routes = setup()
+
+            routes.should.have.property('tokenEndpoint')
+            routes.should.have.property('authorizationEndpoint')
         })
     })
 
@@ -88,7 +94,7 @@ describe('setup the server as an OAuth2 provider', function(){
             setup = function(){ base(); postToToken() } 
 
             req.method = "POST"
-            req.path = function(){ return tokenEndpoint }
+            req.url = tokenEndpoint
             //req.authorization = { scheme: 'basic', basic: { username: client_id, password: secret }}
             req.body = { client_id: client, client_secret: secret, grant_type: 'client_credentials'}
    
@@ -147,13 +153,11 @@ describe('setup the server as an OAuth2 provider', function(){
                 setup = function(){
                    
                     return new Promise(function(resolve, reject){
-                        server.post = sinon.spy(function(url, fn){ 
-                            postToToken = _.partial(fn, req, res, reject)
-                        })
+                        var routes = createServer( options, grants)
 
+                        postToToken = _.partial(routes.tokenEndpoint, req, res, reject)
                         sendJson = oauth._sendJson = sinon.spy(resolve)
 
-                        createServer(server, options, grants)
                         postToToken()
                     }) 
                 }
@@ -185,7 +189,7 @@ describe('setup the server as an OAuth2 provider', function(){
             //setup = function(){ base(); getToAuth() } 
             req.query = {}
             req.method = "GET"
-            req.path = function(){ return authorizeEndpoint }
+            req.url = authorizeEndpoint
             
             options.grants = ['authorization_code', 'refresh_token']
 
@@ -198,8 +202,9 @@ describe('setup the server as an OAuth2 provider', function(){
 
         describe('when a request is missing client_id', function(){
              beforeEach(function(){
-                req.query = { redirect_uri: uri, response_type: 'code'}    
-            })
+                req.query = { redirect_uri: uri, response_type: 'code'}
+                req.url +=  format('?redirect_uri=%s&response_type=code', uri)
+             })
             it('should send an error', function(){
                 setup()
                 sendError.should.be.an.oauthErrorResponse(errors.InvalidRequestError, 'client_id')
@@ -208,7 +213,8 @@ describe('setup the server as an OAuth2 provider', function(){
 
         describe('when a request as missing redirect_uri', function(){
             beforeEach(function(){
-                req.query = { response_type: 'code', client_id: client}    
+                req.query = { response_type: 'code', client_id: client}
+                req.url +=  format('?client_id=%s&response_type=code', client)
             })
 
             it('should send an error', function(){
@@ -219,7 +225,8 @@ describe('setup the server as an OAuth2 provider', function(){
 
         describe('when a request is missing response_type', function(){
             beforeEach(function(){
-                req.query = { redirect_uri: uri, client_id: client}    
+                req.query = { redirect_uri: uri, client_id: client}
+                req.url +=  format('?client_id=%s&redirect_uri=%s', uri, client)
             })
             it('should send an error', function(){
                 setup()
@@ -229,7 +236,9 @@ describe('setup the server as an OAuth2 provider', function(){
    
         describe('when a request redirect_uri contains a hash fragment', function(){
             beforeEach(function(){
-                req.query = { response_type: 'code', client_id: client, redirect_uri: 'https://c.c.com?hello#dfdsf' }    
+                req.query = { response_type: 'code', client_id: client, redirect_uri: 'https://c.c.com?hello#dfdsf' }
+                req.url +=  format('?response_type=code&client_id=%s&redirect_uri=%s'
+                    , client, encodeURIComponent('https://c.c.com?hello#dfdsf'))
             })
 
             it('should send an error', function(){
@@ -241,7 +250,8 @@ describe('setup the server as an OAuth2 provider', function(){
 
         describe('when a request response_type is invalid', function(){
             beforeEach(function(){
-                req.query = { response_type: 'boooom', client_id: client, redirect_uri: uri }    
+                req.query = { response_type: 'boooom', client_id: client, redirect_uri: uri }
+                req.url +=  format('?response_type=boooom&client_id=%s&redirect_uri=%s', client, uri )
             })
 
             it('should send an error', function(){
@@ -263,6 +273,8 @@ describe('setup the server as an OAuth2 provider', function(){
                 }
 
                 req.query = { client_id: client, redirect_uri: uri, response_type: 'code'}
+                req.url +=  format('?response_type=code&client_id=%s&redirect_uri=%s', client, uri )
+
                 grantStubs.grantCode.returns(Promise.resolve('a_code'));
                 grantStubs.resourceOwnerApproval.returns(Promise.resolve(true));
                 
@@ -305,6 +317,7 @@ describe('setup the server as an OAuth2 provider', function(){
             
                 beforeEach(function(){ 
                     req.query = { client_id: client, redirect_uri: uri, response_type: 'code'}
+                    req.url +=  format('?response_type=code&client_id=%s&redirect_uri=%s', client, uri )
                     grantStubs.resourceOwnerApproval.returns(Promise.reject(new errors.AccessDeniedError('no dice')));
                 })    
             
@@ -337,7 +350,7 @@ describe('setup the server as an OAuth2 provider', function(){
         describe('when the request is heading for the token endpoint', function(){
             beforeEach(function(){ 
                 req.method = 'POST'
-                req.path.returns(tokenEndpoint)
+                req.url = tokenEndpoint
             })
 
             it('continue through for the token endpoint', function(){
@@ -350,7 +363,7 @@ describe('setup the server as an OAuth2 provider', function(){
         describe('when the request is heading for the code endpoint', function(){
             beforeEach(function(){ 
                 req.method = 'GET'
-                req.path.returns(authorizeEndpoint)
+                req.url = authorizeEndpoint
             })
 
             it('continue through for the code endpoint', function(){
@@ -362,7 +375,7 @@ describe('setup the server as an OAuth2 provider', function(){
             describe('when the grant doesn\'t support auth code', function(){
                 beforeEach(function(){ 
                     req.method = 'GET'
-                    req.path.returns(authorizeEndpoint)
+                    req.url = authorizeEndpoint
                     options.grants = ['client_credentials']
                 })
 
@@ -463,6 +476,6 @@ function getGrantStubs(){
         grantToken: sinon.stub(),
         grantCode: sinon.stub(),
         resourceOwnerApproval: sinon.stub(),
-        validateRequest: sinon.stub(),
+        validateRequest: sinon.stub()
     }
 }

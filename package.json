@@ -1,6 +1,6 @@
 {
   "name": "oauthenticity",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "simple ouath2 implementation for use with restify or any other connect style node server",
   "main": "lib/setup.js",
   "directories": {
